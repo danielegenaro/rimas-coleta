@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>RIMAS – Formulário de Coleta</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c26;
+    --surface2: #1e2433;
+    --border: #2a3048;
+    --accent: #00c896;
+    --accent2: #0088ff;
+    --warn: #ff6b35;
+    --text: #e8eaf0;
+    --text2: #8892a4;
+    --text3: #555e72;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --radius: 6px;
+    --transition: 0.15s ease;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ===== LAYOUT ===== */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 52px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    white-space: nowrap;
+  }
+
+  .logo span { color: var(--text2); font-weight: 400; }
+
+  header .spacer { flex: 1; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .dot.offline { background: var(--warn); }
+
+  /* ===== TABS ===== */
+  .tabs {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--transition);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: rgba(0, 200, 150, 0.04);
+  }
+
+  .tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+
+  /* ===== PANELS ===== */
+  .panel { display: none; flex: 1; overflow: hidden; }
+  .panel.active { display: flex; flex-direction: column; }
+
+  /* ===== MAP PANEL ===== */
+  #map-panel { position: relative; }
+
+  #map {
+    flex: 1;
+    background: #0a0d14;
+  }
+
+  .map-info-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text2);
+    flex-shrink: 0;
+  }
+
+  .map-info-bar strong { color: var(--text); }
+
+  /* ===== TABLE PANEL ===== */
+  #list-panel { overflow: hidden; }
+
+  .list-toolbar {
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .search-row { display: flex; flex-direction: column; gap: 4px; }
+
+  .search-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .search-wrap { position: relative; display: flex; align-items: center; }
+
+  .search-icon {
+    position: absolute;
+    left: 11px;
+    font-size: 15px;
+    color: var(--text3);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .search-box {
+    width: 100%;
+    background: var(--bg);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 11px 38px 11px 36px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,200,150,0.08);
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+
+  .search-box:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 5px rgba(0,200,150,0.18);
+  }
+
+  .search-box::placeholder { color: var(--text3); }
+
+  .search-clear {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text3);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+    display: none;
+  }
+  .search-clear.visible { display: block; color: var(--text2); }
+
+  .filter-row { display: flex; gap: 8px; }
+
+  .filter-group { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+
+  .filter-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  select.filter-sel {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  select.filter-sel:focus { border-color: var(--accent2); }
+
+  .list-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    padding: 0 2px;
+    text-align: right;
+  }
+
+  .list-scroll { overflow-y: auto; flex: 1; }
+
+  .well-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .well-item:hover { background: var(--surface2); }
+  .well-item.selected { background: rgba(0, 200, 150, 0.08); border-left: 2px solid var(--accent); }
+
+  .well-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent2);
+    white-space: nowrap;
+    padding-top: 2px;
+    min-width: 86px;
+  }
+
+  .well-info { flex: 1; }
+  .well-name { font-weight: 500; font-size: 13px; color: var(--text); }
+  .well-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .well-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  .tag-uf { border-color: var(--accent2); color: var(--accent2); }
+  .tag-ur { border-color: var(--text3); color: var(--text3); }
+  .tag-equip { border-color: var(--accent); color: var(--accent); }
+  .tag-new { border-color: var(--warn); color: var(--warn); }
+
+  /* ===== FORM PANEL ===== */
+  #form-panel { overflow: hidden; }
+
+  .form-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    flex-shrink: 0;
+  }
+
+  .form-point-id {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+
+  .form-point-name { font-size: 15px; font-weight: 600; }
+  .form-point-loc { font-size: 11px; color: var(--text2); margin-top: 1px; }
+
+  /* ── Stepper progress bar ── */
+  .stepper-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px 0;
+    flex-shrink: 0;
+  }
+
+  .stepper-steps {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .stepper-steps::-webkit-scrollbar { display: none; }
+
+  .step-dot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 36px;
+    cursor: pointer;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+    transition: border-color var(--transition);
+    position: relative;
+  }
+
+  .step-dot::before {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0; right: 0;
+    height: 2px;
+    background: transparent;
+    transition: background var(--transition);
+  }
+
+  .step-dot.done { border-bottom-color: var(--accent); }
+  .step-dot.active { border-bottom-color: var(--accent); }
+
+  .step-circle {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    background: var(--bg);
+    transition: all var(--transition);
+    margin-bottom: 3px;
+  }
+
+  .step-dot.done .step-circle {
+    border-color: var(--accent);
+    background: rgba(0,200,150,0.15);
+    color: var(--accent);
+  }
+
+  .step-dot.active .step-circle {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 8px rgba(0,200,150,0.5);
+  }
+
+  .step-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text3);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52px;
+  }
+
+  .step-dot.active .step-label { color: var(--accent); font-weight: 600; }
+  .step-dot.done .step-label { color: var(--text2); }
+
+  /* ── Active section card ── */
+  .section-card {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,200,150,0.1);
+    border: 1px solid rgba(0,200,150,0.3);
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  .section-title {
+    font-weight: 600;
+    font-size: 14px;
+    flex: 1;
+    color: var(--text);
+  }
+
+  .section-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+  }
+
+  /* ── Nav buttons ── */
+  .stepper-nav {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .nav-info {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-align: center;
+  }
+
+  /* ===== FORM FIELDS ===== */
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: var(--font-mono);
+  }
+
+  label .req { color: var(--warn); }
+
+  input[type=text], input[type=number], input[type=date], textarea, select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--transition);
+    width: 100%;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  input[readonly] { color: var(--text2); cursor: not-allowed; }
+
+  textarea { resize: vertical; min-height: 64px; }
+
+  /* Checkboxes */
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-size: 12px;
+    user-select: none;
+  }
+
+  .checkbox-item:hover { border-color: var(--text3); }
+  .checkbox-item.checked { border-color: var(--accent); background: rgba(0,200,150,0.08); color: var(--accent); }
+
+  .checkbox-item input { display: none; }
+
+  /* Radio */
+  .radio-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .radio-item {
+    padding: 6px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all var(--transition);
+    user-select: none;
+  }
+
+  .radio-item:hover { border-color: var(--text3); }
+  .radio-item.selected { background: rgba(0,200,150,0.12); border-color: var(--accent); color: var(--accent); }
+
+  /* Photo */
+  .photo-zone {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  .photo-zone:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .photo-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+  .photo-thumb {
+    width: 72px; height: 72px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border);
+  }
+
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+  .photo-thumb button {
+    position: absolute;
+    top: 2px; right: 2px;
+    background: rgba(0,0,0,0.7);
+    border: none;
+    color: #fff;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== BOTTOM ACTIONS ===== */
+  .form-actions {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    padding: 9px 18px;
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    border: 1px solid;
+    transition: all var(--transition);
+    text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #00e5aa; }
+
+  .btn-secondary {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text2);
+  }
+
+  .btn-secondary:hover { border-color: var(--text2); color: var(--text); }
+
+  .btn-danger {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--warn);
+  }
+
+  /* ===== RECORDS PANEL ===== */
+  #records-panel { overflow: hidden; }
+
+  .records-toolbar {
+    padding: 10px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .records-toolbar h3 { font-family: var(--font-mono); font-size: 12px; color: var(--text2); flex: 1; }
+
+  .records-list { overflow-y: auto; flex: 1; }
+
+  .record-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+
+  .record-item:hover { background: var(--surface2); }
+
+  .record-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .record-code { font-family: var(--font-mono); font-size: 11px; color: var(--accent); }
+  .record-date { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-left: auto; }
+
+  .record-name { font-weight: 500; font-size: 13px; }
+  .record-status { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+  .badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  .badge-pending { background: rgba(255,107,53,0.15); color: var(--warn); }
+  .badge-synced { background: rgba(0,200,150,0.12); color: var(--accent); }
+  .badge-draft { background: rgba(136,146,164,0.15); color: var(--text2); }
+
+  /* ===== FLOATING NEW POINT BUTTON ===== */
+  #fab-new {
+    position: fixed;
+    bottom: 80px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent2);
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 999;
+    box-shadow: 0 4px 20px rgba(0,136,255,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition);
+  }
+
+  #fab-new:hover { transform: scale(1.1); }
+
+  /* ===== MODAL ===== */
+  .modal-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .modal-bg.hidden { display: none; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: 12px 12px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px 16px 32px;
+  }
+
+  .modal h3 {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* ===== EMPTY STATE ===== */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--text3);
+    gap: 12px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .empty-icon { font-size: 48px; opacity: 0.4; }
+  .empty-title { font-size: 15px; font-weight: 500; color: var(--text2); }
+  .empty-desc { font-size: 12px; line-height: 1.6; max-width: 260px; }
+
+  /* ===== TOAST ===== */
+  #toast {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    z-index: 2000;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ===== LEAFLET OVERRIDES ===== */
+  .leaflet-container { background: #1a1f2e !important; }
+
+  .custom-marker {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: rgba(0, 200, 150, 0.3);
+    border-color: var(--accent);
+  }
+
+  .custom-marker.selected {
+    width: 14px; height: 14px;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,200,150,0.6);
+  }
+
+  .leaflet-popup-content-wrapper {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  }
+
+  .leaflet-popup-tip { background: var(--surface2) !important; }
+
+  .popup-code { font-family: var(--font-mono); font-size: 10px; color: var(--accent); }
+  .popup-name { font-weight: 600; font-size: 13px; margin: 2px 0; }
+  .popup-meta { font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+  .popup-btn {
+    display: block;
+    width: 100%;
+    padding: 7px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #000;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ===== SYNC STATUS INDICATOR ===== */
+  .sync-count {
+    background: var(--warn);
+    color: #000;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+  }
+
+  .sync-count.hidden { display: none; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (min-width: 600px) {
+    .field-row { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">RIMAS<span>/COLETA</span></div>
+    <div class="spacer"></div>
+    <div class="status-bar">
+      <div class="dot" id="online-dot"></div>
+      <span id="online-label">ONLINE</span>
+      <div class="sync-count hidden" id="sync-badge">0</div>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <div class="tab active" data-tab="map">🗺 Mapa</div>
+    <div class="tab" data-tab="list">📋 Lista</div>
+    <div class="tab" data-tab="form">📝 Formulário</div>
+    <div class="tab" data-tab="records">💾 Registros</div>
+  </div>
+
+  <!-- MAP PANEL -->
+  <div id="map-panel" class="panel active">
+    <div id="map"></div>
+    <div class="map-info-bar">
+      <span id="map-count">506 pontos</span>
+      <span>·</span>
+      <span id="map-selected">Toque para selecionar</span>
+    </div>
+  </div>
+
+  <!-- LIST PANEL -->
+  <div id="list-panel" class="panel">
+    <div class="list-toolbar">
+      <div class="search-row">
+        <span class="search-label">🔍 Buscar ponto</span>
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input class="search-box" id="search-input"
+            placeholder="Código SIAGAS, nome ou município..." type="text"
+            autocomplete="off" autocorrect="off" spellcheck="false">
+          <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Limpar">×</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">Unidade Regional</span>
+          <select class="filter-sel" id="filter-ur">
+            <option value="">Todas as URs</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">UF do Poço</span>
+          <select class="filter-sel" id="filter-uf">
+            <option value="">Todas as UFs</option>
+          </select>
+        </div>
+      </div>
+      <div class="list-count" id="list-count"></div>
+    </div>
+    <div class="list-scroll" id="well-list"></div>
+  </div>
+
+  <!-- FORM PANEL -->
+  <div id="form-panel" class="panel">
+    <!-- injected dynamically -->
+    <div class="empty-state" id="form-empty">
+      <div class="empty-icon">📍</div>
+      <div class="empty-title">Nenhum ponto selecionado</div>
+      <div class="empty-desc">Selecione um ponto no mapa ou na lista para iniciar o preenchimento do formulário de coleta.</div>
+    </div>
+  </div>
+
+  <!-- RECORDS PANEL -->
+  <div id="records-panel" class="panel">
+    <div class="records-toolbar">
+      <h3 id="records-count">REGISTROS LOCAIS</h3>
+      <button class="btn btn-secondary" onclick="exportAllCSV()" style="font-size:11px;padding:6px 10px;">⬇ EXPORTAR CSV</button>
+      <button class="btn btn-primary" id="sync-btn" onclick="syncRecords()" style="font-size:11px;padding:6px 12px;">⟳ SINCRONIZAR</button>
+    </div>
+    <div class="records-list" id="records-list"></div>
+  </div>
+
+</div>
+
+<!-- FAB NEW POINT -->
+<button id="fab-new" onclick="openNewPointModal()" title="Novo ponto">+</button>
+
+<!-- MODAL: Novo Ponto -->
+<div class="modal-bg hidden" id="modal-new">
+  <div class="modal">
+    <h3>// NOVO PONTO</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="field">
+        <label>Código SIAGAS <span class="req">*</span></label>
+        <input type="number" id="new-siagas" placeholder="Ex: 3500099999">
+      </div>
+      <div class="field">
+        <label>Código ANA</label>
+        <input type="number" id="new-ana" placeholder="Opcional">
+      </div>
+      <div class="field">
+        <label>Nome do ponto <span class="req">*</span></label>
+        <input type="text" id="new-nome" placeholder="Ex: ESCOLA MUNICIPAL XYZ">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>UF Poço <span class="req">*</span></label>
+          <select id="new-uf-poco">
+            <option value="">Selecione</option>
+            <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+            <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+            <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+            <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+            <option>SE</option><option>SP</option><option>TO</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>UR Responsável <span class="req">*</span></label>
+          <select id="new-ur">
+            <option value="">Selecione</option>
+            <option>REPO</option><option>REFO</option><option>RETE</option>
+            <option>SUREG-BE</option><option>SUREG-BH</option><option>SUREG-GO</option>
+            <option>SUREG-MA</option><option>SUREG-PA</option><option>SUREG-RE</option>
+            <option>SUREG-SA</option><option>SUREG-SP</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Localização / Endereço</label>
+        <input type="text" id="new-local" placeholder="Descrição do local">
+      </div>
+      <div class="field">
+        <label>Município</label>
+        <input type="text" id="new-mun">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Latitude</label>
+          <input type="number" id="new-lat" step="0.000001" placeholder="-23.500000">
+        </div>
+        <div class="field">
+          <label>Longitude</label>
+          <input type="number" id="new-lon" step="0.000001" placeholder="-46.600000">
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('modal-new')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="saveNewPoint()">CRIAR PONTO</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const WELLS_DATA = null; // populated below via script
+
+// Load wells from JSON embedded
+const WELLS_RAW = []; // will be populated
+
+// ============================================================
+// APP STATE
+// ============================================================
+let selectedWell = null;
+let mapMarkers = {};
+let currentPhotos = [];
+let formDirty = false;
+let currentStep = 0;  // 0-based stepper index
+const STEP_LABELS = ['Ident.','Visita','Nível','Equip.','Ativid.','Obs.','Fotos'];
+let formCache = {};   // persists field values across stepper steps
+
+// DB key prefix
+const DB_KEY = 'rimas_records';
+const WELLS_EXTRA_KEY = 'rimas_wells_extra';
+
+// ============================================================
+// STORAGE (IndexedDB via localStorage fallback)
+// ============================================================
+function loadRecords() {
+  try {
+    return JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveRecords(records) {
+  localStorage.setItem(DB_KEY, JSON.stringify(records));
+  updateSyncBadge();
+}
+
+function loadExtraWells() {
+  try {
+    return JSON.parse(localStorage.getItem(WELLS_EXTRA_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveExtraWells(wells) {
+  localStorage.setItem(WELLS_EXTRA_KEY, JSON.stringify(wells));
+}
+
+function getAllWells() {
+  return [...WELLS_RAW, ...loadExtraWells()];
+}
+
+// ============================================================
+// ONLINE STATUS
+// ============================================================
+function updateOnlineStatus() {
+  const online = navigator.onLine;
+  document.getElementById('online-dot').className = 'dot' + (online ? '' : ' offline');
+  document.getElementById('online-label').textContent = online ? 'ONLINE' : 'OFFLINE';
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+function updateSyncBadge() {
+  const pending = loadRecords().filter(r => r.syncStatus === 'pending').length;
+  const badge = document.getElementById('sync-badge');
+  badge.textContent = pending;
+  badge.className = 'sync-count' + (pending === 0 ? ' hidden' : '');
+}
+
+// ============================================================
+// MAP
+// ============================================================
+let map;
+
+function initMap() {
+  map = L.map('map', {
+    center: [-15, -52],
+    zoom: 4,
+    zoomControl: true,
+  });
+
+  // Dark tile layer via OpenStreetMap (works offline from cache)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 18,
+    className: 'map-tiles',
+  }).addTo(map);
+
+  // Add all wells
+  getAllWells().forEach(w => addMarker(w));
+}
+
+function makeMarkerIcon(selected = false) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="custom-marker${selected ? ' selected' : ''}"></div>`,
+    iconSize: selected ? [14, 14] : [10, 10],
+    iconAnchor: selected ? [7, 7] : [5, 5],
+  });
+}
+
+function addMarker(well) {
+  const lat = parseFloat(well.latitude_decimal || well.lat);
+  const lon = parseFloat(well.longitude_decimal || well.lon);
+  if (isNaN(lat) || isNaN(lon)) return;
+
+  const marker = L.marker([lat, lon], { icon: makeMarkerIcon() });
+  const code = well.ponto || well.siagas;
+  const nome = well.nome || well.name || '';
+  const mun = well.municipio || '';
+  const ur = well['UR Responsável'] || well.ur || '';
+
+  marker.bindPopup(`
+    <div class="popup-code">#${code}</div>
+    <div class="popup-name">${nome}</div>
+    <div class="popup-meta">${mun} · ${ur}</div>
+    <button class="popup-btn" onclick="selectWell('${code}')">PREENCHER FORMULÁRIO</button>
+  `);
+
+  marker.on('click', () => {
+    document.getElementById('map-selected').textContent = `${nome} (${code})`;
+    // Reset others
+    Object.values(mapMarkers).forEach(m => m.setIcon(makeMarkerIcon(false)));
+    marker.setIcon(makeMarkerIcon(true));
+  });
+
+  marker.addTo(map);
+  mapMarkers[String(code)] = marker;
+}
+
+function selectWell(code) {
+  const wells = getAllWells();
+  const well = wells.find(w => String(w.ponto || w.siagas) === String(code));
+  if (!well) return;
+  selectedWell = well;
+  buildForm(well);
+  switchTab('form');
+  map.closePopup();
+}
+
+// ============================================================
+// TABS
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === name + '-panel'));
+  if (name === 'records') renderRecords();
+}
+
+// ============================================================
+// LIST
+// ============================================================
+function renderList(filter = '', filterUR = '', filterUF = '') {
+  const wells = getAllWells();
+  const lf = filter.toLowerCase();
+  const filtered = wells.filter(w => {
+    const code = String(w.ponto || w.siagas || '');
+    const nome = (w.nome || '').toLowerCase();
+    const mun = (w.municipio || '').toLowerCase();
+    const ur = (w['UR Responsável'] || w.ur || '');
+    const uf = (w.uf || '').trim();
+
+    const matchText = !lf || code.includes(lf) || nome.includes(lf) || mun.includes(lf);
+    const matchUR = !filterUR || ur === filterUR;
+    const matchUF = !filterUF || uf === filterUF;
+    return matchText && matchUR && matchUF;
+  });
+
+  const list = document.getElementById('well-list');
+  list.innerHTML = '';
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px;">Nenhum ponto encontrado.</div>';
+    return;
+  }
+
+  filtered.forEach(w => {
+    const code = w.ponto || w.siagas;
+    const isNew = w._isNew;
+    const item = document.createElement('div');
+    item.className = 'well-item' + (selectedWell && String(selectedWell.ponto || selectedWell.siagas) === String(code) ? ' selected' : '');
+    item.onclick = () => selectWell(code);
+
+    const sit = w.situacao || '';
+    const equip = sit.includes('equipado') ? 'EQUIPADO' : sit.includes('não equipado') ? 'S/EQUIP' : '';
+
+    item.innerHTML = `
+      <div class="well-code">#${code}</div>
+      <div class="well-info">
+        <div class="well-name">${w.nome || '—'}</div>
+        <div class="well-meta">${w.municipio || ''} · ${(w.localizacao || '').substring(0, 60)}</div>
+        <div class="well-tags">
+          <span class="tag tag-uf">${(w.uf || '').trim()}</span>
+          <span class="tag tag-ur">${w['UR Responsável'] || w.ur || ''}</span>
+          ${equip ? `<span class="tag tag-equip">${equip}</span>` : ''}
+          ${isNew ? `<span class="tag tag-new">NOVO</span>` : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+  const countEl = document.getElementById('list-count');
+  if (countEl) countEl.textContent = `${filtered.length} de ${wells.length} pontos`;
+}
+
+function initListFilters() {
+  const wells = getAllWells();
+  const urs = [...new Set(wells.map(w => w['UR Responsável'] || w.ur || '').filter(Boolean))].sort();
+  const ufs = [...new Set(wells.map(w => (w.uf || '').trim()).filter(Boolean))].sort();
+
+  const urSel = document.getElementById('filter-ur');
+  urs.forEach(ur => { const o = document.createElement('option'); o.value = ur; o.textContent = ur; urSel.appendChild(o); });
+
+  const ufSel = document.getElementById('filter-uf');
+  ufs.forEach(uf => { const o = document.createElement('option'); o.value = uf; o.textContent = uf; ufSel.appendChild(o); });
+
+  const go = () => renderList(
+    document.getElementById('search-input').value,
+    document.getElementById('filter-ur').value,
+    document.getElementById('filter-uf').value,
+  );
+
+  const searchInput = document.getElementById('search-input');
+  const clearBtn = document.getElementById('search-clear');
+
+  searchInput.addEventListener('input', () => {
+    clearBtn.classList.toggle('visible', searchInput.value.length > 0);
+    go();
+  });
+  document.getElementById('filter-ur').addEventListener('change', go);
+  document.getElementById('filter-uf').addEventListener('change', go);
+
+  renderList();
+}
+
+function clearSearch() {
+  const searchInput = document.getElementById('search-input');
+  searchInput.value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  renderList('',
+    document.getElementById('filter-ur').value,
+    document.getElementById('filter-uf').value
+  );
+  searchInput.focus();
+}
+
+// ============================================================
+// FORM
+// ============================================================
+function buildForm(well) {
+  const panel = document.getElementById('form-panel');
+  document.getElementById('form-empty').style.display = 'none';
+
+  const records = loadRecords();
+  const existing = records.find(r => r.siagas === String(well.ponto || well.siagas));
+  const code = well.ponto || well.siagas;
+  const today = new Date().toISOString().split('T')[0];
+  const d = existing || {};
+
+  currentPhotos = d.photos || [];
+  currentStep = 0;
+
+  // Pre-populate cache with existing data OR sensible defaults
+  // so fields are valid even if user never navigates to that section
+  formCache = {
+    'f-ana':        String(well['Cód ANA'] || d.ana || ''),
+    'f-uf-sureg':   d.uf_sureg || 'SP',
+    'f-mun':        well.municipio || d.municipio || '',
+    'f-roteiro':    String(d.roteiro || 1),
+    'f-equipe':     d.equipe || '',
+    'f-data':       d.data || today,
+    'f-situacao':   d.situacao || 'Ativo',
+    'f-pcd':        d.pcd || '',
+    'f-cercado':    d.cercado || '',
+    'f-na-manual':  String(d.na_manual || ''),
+    'f-na-equip':   String(d.na_equip || ''),
+    'f-serie':      d.serie || '',
+    'f-equip':      d.equipamento || well.equipamento || '',
+    'f-patrimonio': String(d.patrimonio || ''),
+    'f-atividades': d.atividades || [],
+    'f-condicao':   d.condicao || '',
+    'f-os':         d.os || '',
+    'f-problemas':  d.problemas || '',
+    'f-obs':        d.obs || '',
+  };
+
+  // Build sections HTML data
+  const sections = buildSections(well, d, today, code);
+
+  panel.innerHTML = `
+    <div class="form-header">
+      <div class="form-point-id">Cód. SIAGAS: ${code}${well['Cód ANA'] ? ' · ANA: '+well['Cód ANA'] : ''}</div>
+      <div class="form-point-name">${well.nome || '—'}</div>
+      <div class="form-point-loc">${well.municipio || ''} · ${(well.uf || '').trim()} · ${well['UR Responsável'] || well.ur || ''}</div>
+    </div>
+
+    <div class="stepper-bar">
+      <div class="stepper-steps" id="stepper-steps">
+        ${STEP_LABELS.map((lbl, i) => `
+          <div class="step-dot${i===0?' active':''}" data-step="${i}" onclick="goToStep(${i})">
+            <div class="step-circle">${i+1}</div>
+            <span class="step-label">${lbl}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="section-card" id="section-card"></div>
+
+    <div class="stepper-nav">
+      <button class="btn btn-secondary" id="btn-prev" onclick="stepPrev()" style="min-width:80px;">◀ ANTERIOR</button>
+      <div class="nav-info" id="nav-info"></div>
+      <button class="btn btn-secondary" id="btn-save-draft" onclick="saveDraft()" style="font-size:11px;padding:9px 10px;">💾</button>
+      <button class="btn btn-primary" id="btn-next" onclick="stepNext()" style="min-width:80px;">PRÓXIMA ▶</button>
+    </div>
+  `;
+
+  renderStep(sections);
+}
+
+function buildSections(well, d, today, code) {
+  return [
+    {
+      num: '01', title: 'Identificação do Ponto',
+      html: `
+        <div class="field-row">
+          <div class="field"><label>Cód. SIAGAS</label><input type="text" value="${code}" readonly></div>
+          <div class="field"><label>Cód. ANA</label><input type="text" id="f-ana" value="${well['Cód ANA'] || d.ana || ''}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>UF SUREG</label>
+            <select id="f-uf-sureg">${['RS','SP','MG','BA','PE','CE','PI','GO','PA','AM','RO'].map(s=>`<option${(d.uf_sureg||'SP')===s?' selected':''}>${s}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>UF Poço</label><input type="text" value="${(well.uf||'').trim()}" readonly></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Município</label><input type="text" id="f-mun" value="${well.municipio||d.municipio||''}"></div>
+          <div class="field"><label>Roteiro</label>
+            <select id="f-roteiro">${[1,2,3,4,5].map(n=>`<option${(d.roteiro||1)==n?' selected':''}>${n}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>Equipe</label><input type="text" id="f-equipe" value="${d.equipe||''}" placeholder="Nome(s) da equipe de campo"></div>`
+    },
+    {
+      num: '02', title: 'Dados da Visita',
+      html: `
+        <div class="field-row">
+          <div class="field"><label>Data da Visita <span class="req">*</span></label><input type="date" id="f-data" value="${d.data||today}"></div>
+          <div class="field"><label>Situação <span class="req">*</span></label>
+            <select id="f-situacao"><option value="">Selecione</option>${['Ativo','Desativado','Sem equipamento','Sem acesso','Outro'].map(s=>`<option${(d.situacao||'Ativo')===s?' selected':''}>${s}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>Tem PCD Instalada?</label>
+          <div class="radio-group" id="f-pcd">${['Sim','Não'].map(v=>`<div class="radio-item${(d.pcd||well.pcd||'')==v?' selected':''}" onclick="selectRadio('f-pcd','${v}',this)">${v}</div>`).join('')}</div>
+        </div>
+        <div class="field"><label>Cercado?</label>
+          <div class="radio-group" id="f-cercado">${['Sim','Não'].map(v=>`<div class="radio-item${(d.cercado||'')==v?' selected':''}" onclick="selectRadio('f-cercado','${v}',this)">${v}</div>`).join('')}</div>
+        </div>`
+    },
+    {
+      num: '03', title: 'Medições de Nível',
+      html: `
+        <div class="field-row">
+          <div class="field"><label>NA Manual (m)</label><input type="number" id="f-na-manual" step="0.001" value="${d.na_manual||''}" placeholder="0.000"></div>
+          <div class="field"><label>NA Equipamento (m)</label><input type="number" id="f-na-equip" step="0.001" value="${d.na_equip||''}" placeholder="0.000"></div>
+        </div>
+        <div class="field"><label>Cota Altimétrica (m) — referência</label><input type="text" value="${well.cota_terreno||''}" readonly></div>
+        <div class="field"><label>Série recuperada?</label>
+          <div class="radio-group" id="f-serie">${['Sim','Não','Parcialmente'].map(v=>`<div class="radio-item${(d.serie||'')==v?' selected':''}" onclick="selectRadio('f-serie','${v}',this)">${v}</div>`).join('')}</div>
+        </div>`
+    },
+    {
+      num: '04', title: 'Equipamento',
+      html: `
+        <div class="field"><label>Equipamento Instalado</label>
+          <select id="f-equip"><option value="">Selecione</option>${['Insitu (Troll)','Mini Orpheus','Thalimedes','Heron (Dipper)','Serendip','Orphimedes','PCD telemetria Hobeco','PCD telemetria OTT','PCD telemetria DualBase','Rugged Troll','Orpheus Mini','Desativado','Outro'].map(e=>`<option${(d.equipamento||well.equipamento||'')==e?' selected':''}>${e}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Nº Patrimônio</label><input type="number" id="f-patrimonio" value="${d.patrimonio||''}" placeholder="Número inteiro"></div>`
+    },
+    {
+      num: '05', title: 'Atividades Executadas',
+      html: `
+        <div class="field"><label>Selecione todas as atividades realizadas</label>
+          <div class="checkbox-group" id="f-atividades">
+            ${['Coleta de amostra','Extração de dados','Instalação de equipamento','Troca de equipamento','(Re)Configuração de equipamento','Troca de bateria','Retirada de equipamento','Perfilagem','Outra'].map(a=>
+              `<div class="checkbox-item${(d.atividades||[]).includes(a)?' checked':''}" onclick="toggleCheckbox(this,'${a}','f-atividades')">${a}</div>`).join('')}
+          </div>
+        </div>`
+    },
+    {
+      num: '06', title: 'Condição, Necessidades e OBS',
+      html: `
+        <div class="field"><label>Condição da Estação</label><textarea id="f-condicao" rows="3" placeholder="Descreva as condições observadas…">${d.condicao||''}</textarea></div>
+        <div class="field"><label>Ordem de Serviço / Necessidades</label><textarea id="f-os" rows="3" placeholder="Próximas ações necessárias…">${d.os||''}</textarea></div>
+        <div class="field"><label>Problemas Relatados</label><textarea id="f-problemas" rows="2" placeholder="Problemas encontrados…">${d.problemas||''}</textarea></div>
+        <div class="field"><label>Observações Gerais (OBS)</label><textarea id="f-obs" rows="3" placeholder="Observações adicionais…">${d.obs||''}</textarea></div>`
+    },
+    {
+      num: '07', title: 'Registro Fotográfico',
+      html: `
+        <div class="field">
+          <label>Fotografias do ponto</label>
+          <div class="photo-zone" onclick="document.getElementById('photo-input').click()">
+            📷 Toque para fotografar ou selecionar imagens da galeria
+          </div>
+          <input type="file" id="photo-input" accept="image/*" capture="environment" multiple style="display:none" onchange="handlePhotos(event)">
+          <div class="photo-thumbs" id="photo-thumbs"></div>
+        </div>
+        <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);">
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);margin-bottom:8px;">✔ PRONTO PARA SALVAR</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Revise os dados e salve o registro localmente.</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-danger" onclick="clearForm()" style="flex:1;">LIMPAR</button>
+            <button class="btn btn-primary" onclick="saveRecord('pending')" style="flex:2;">💾 SALVAR REGISTRO</button>
+          </div>
+        </div>`
+    },
+  ];
+}
+
+function renderStep(sections) {
+  if (!sections) return;
+  // cache sections on the panel for later navigation
+  document.getElementById('form-panel')._sections = sections;
+  _renderCurrentStep();
+}
+
+function collectCurrentStep() {
+  // Harvest all currently visible form fields into formCache
+  const ids = ['f-ana','f-uf-sureg','f-mun','f-roteiro','f-equipe',
+               'f-data','f-situacao','f-na-manual','f-na-equip',
+               'f-equip','f-patrimonio','f-condicao','f-os','f-problemas','f-obs'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.value !== undefined) formCache[id] = el.value;
+  });
+  // Radio groups — only update if the group exists in DOM
+  ['f-pcd','f-cercado','f-serie'].forEach(gid => {
+    if (!document.getElementById(gid)) return;
+    const sel = document.querySelector(`#${gid} .radio-item.selected`);
+    formCache[gid] = sel ? sel.textContent.trim() : (formCache[gid] || '');
+  });
+  // Checkboxes — only update if the group exists in DOM
+  const ativGrp = document.getElementById('f-atividades');
+  if (ativGrp) {
+    formCache['f-atividades'] = [...ativGrp.querySelectorAll('.checkbox-item.checked')]
+      .map(el => el.textContent.trim());
+  }
+}
+
+function _renderCurrentStep() {
+  const panel = document.getElementById('form-panel');
+  const sections = panel._sections;
+  if (!sections) return;
+
+  const total = sections.length;
+  const s = sections[currentStep];
+
+  // Update stepper dots
+  document.querySelectorAll('.step-dot').forEach((dot, i) => {
+    dot.classList.remove('active', 'done');
+    if (i < currentStep) dot.classList.add('done');
+    else if (i === currentStep) dot.classList.add('active');
+  });
+
+  // Scroll active dot into view
+  const activeDot = document.querySelector('.step-dot.active');
+  if (activeDot) activeDot.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+  // Render section card
+  const card = document.getElementById('section-card');
+  card.innerHTML = `
+    <div class="section-card-head">
+      <span class="section-num">${s.num}</span>
+      <span class="section-title">${s.title}</span>
+    </div>
+    <div class="section-body">${s.html}</div>
+  `;
+
+  // Re-attach photo thumbs if on step 7
+  if (currentStep === 6) renderPhotoThumbs();
+
+  // Update nav buttons
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const navInfo = document.getElementById('nav-info');
+
+  btnPrev.disabled = currentStep === 0;
+  btnPrev.style.opacity = currentStep === 0 ? '0.3' : '1';
+
+  if (currentStep === total - 1) {
+    btnNext.textContent = '✔ CONCLUIR';
+    btnNext.className = 'btn btn-primary';
+    btnNext.onclick = () => saveRecord('pending');
+  } else {
+    btnNext.textContent = 'PRÓXIMA ▶';
+    btnNext.className = 'btn btn-primary';
+    btnNext.onclick = stepNext;
+  }
+
+  navInfo.textContent = `${currentStep + 1} de ${total}`;
+}
+
+function goToStep(idx) {
+  const panel = document.getElementById('form-panel');
+  if (!panel._sections) return;
+  collectCurrentStep();
+  currentStep = idx;
+  _renderCurrentStep();
+}
+
+function stepNext() {
+  const panel = document.getElementById('form-panel');
+  if (!panel._sections) return;
+  if (currentStep < panel._sections.length - 1) {
+    collectCurrentStep();
+    currentStep++;
+    _renderCurrentStep();
+    document.getElementById('section-card').scrollTop = 0;
+  }
+}
+
+function stepPrev() {
+  if (currentStep > 0) {
+    collectCurrentStep();
+    currentStep--;
+    _renderCurrentStep();
+    document.getElementById('section-card').scrollTop = 0;
+  }
+}
+
+// (toggleSection removed — stepper handles navigation)
+function toggleSection() {}
+
+function selectRadio(groupId, value, el) {
+  document.querySelectorAll(`#${groupId} .radio-item`).forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  el.dataset.value = value;
+}
+
+function getRadioValue(groupId) {
+  const sel = document.querySelector(`#${groupId} .radio-item.selected`);
+  return sel ? sel.textContent.trim() : '';
+}
+
+function toggleCheckbox(el, value, groupId) {
+  el.classList.toggle('checked');
+  const chk = el.querySelector('input[type=checkbox]');
+  if (chk) chk.checked = el.classList.contains('checked');
+  return false;
+}
+
+function getCheckboxValues(groupId) {
+  return [...document.querySelectorAll(`#${groupId} .checkbox-item.checked`)]
+    .map(el => el.querySelector('input').value);
+}
+
+function handlePhotos(event) {
+  const files = Array.from(event.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      currentPhotos.push({ data: e.target.result, name: file.name, ts: Date.now() });
+      renderPhotoThumbs();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPhotoThumbs() {
+  const container = document.getElementById('photo-thumbs');
+  if (!container) return;
+  container.innerHTML = currentPhotos.map((p, i) => `
+    <div class="photo-thumb">
+      <img src="${p.data}" alt="${p.name}">
+      <button onclick="removePhoto(${i})">×</button>
+    </div>
+  `).join('');
+}
+
+function removePhoto(index) {
+  currentPhotos.splice(index, 1);
+  renderPhotoThumbs();
+}
+
+function getFormData() {
+  // Collect any fields currently visible before reading
+  collectCurrentStep();
+
+  const code = String(selectedWell.ponto || selectedWell.siagas);
+
+  // Helper: live DOM value first, then formCache, then empty string
+  const v = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value : (formCache[id] || '');
+  };
+  const r = (gid) => {
+    const sel = document.querySelector(`#${gid} .radio-item.selected`);
+    return sel ? sel.textContent.trim() : (formCache[gid] || '');
+  };
+  const chk = () => {
+    const live = [...document.querySelectorAll('#f-atividades .checkbox-item.checked')]
+      .map(el => el.textContent.trim());
+    return live.length > 0 ? live : (formCache['f-atividades'] || []);
+  };
+
+  return {
+    siagas: code,
+    ana: v('f-ana'),
+    uf_sureg: v('f-uf-sureg'),
+    municipio: v('f-mun'),
+    roteiro: v('f-roteiro'),
+    equipe: v('f-equipe'),
+    data: v('f-data'),
+    situacao: v('f-situacao'),
+    pcd: r('f-pcd'),
+    cercado: r('f-cercado'),
+    na_manual: v('f-na-manual'),
+    na_equip: v('f-na-equip'),
+    serie: r('f-serie'),
+    equipamento: v('f-equip'),
+    patrimonio: v('f-patrimonio'),
+    atividades: chk(),
+    condicao: v('f-condicao'),
+    os: v('f-os'),
+    problemas: v('f-problemas'),
+    obs: v('f-obs'),
+    photos: currentPhotos,
+    nomePonto: selectedWell.nome || '',
+    localPonto: selectedWell.localizacao || '',
+    uf: (selectedWell.uf || '').trim(),
+    ur: selectedWell['UR Responsável'] || selectedWell.ur || '',
+    lat: selectedWell.latitude_decimal || selectedWell.lat || '',
+    lon: selectedWell.longitude_decimal || selectedWell.lon || '',
+    cota: selectedWell.cota_terreno || '',
+    bacia: selectedWell.bacia || '',
+    subbacia: selectedWell.subbacia || '',
+  };
+}
+
+function saveRecord(status) {
+  if (!selectedWell) { showToast('⚠ Nenhum ponto selecionado'); return; }
+
+  const data = getFormData();
+
+  // Warn but don't block — user may be saving partial data intentionally
+  if (!data.data) {
+    data.data = new Date().toISOString().split('T')[0]; // use today as fallback
+    showToast('⚠ Data não informada — usando data de hoje');
+  }
+  if (!data.situacao) {
+    data.situacao = 'Ativo'; // default fallback
+  }
+
+  try {
+    const records = loadRecords();
+    const idx = records.findIndex(r => r.siagas === data.siagas);
+    const record = {
+      ...data,
+      syncStatus: status,
+      updatedAt: new Date().toISOString(),
+      id: data.siagas + '_' + Date.now()
+    };
+
+    if (idx >= 0) records[idx] = record;
+    else records.push(record);
+
+    saveRecords(records);
+    showToast(status === 'pending' ? '✔ Registro salvo!' : '✔ Rascunho salvo');
+    updateSyncBadge();
+  } catch(e) {
+    showToast('✗ Erro ao salvar: ' + e.message);
+    console.error('saveRecord error:', e);
+  }
+}
+
+function saveDraft() { saveRecord('draft'); }
+
+function clearForm() {
+  if (!confirm('Limpar todos os campos preenchidos?')) return;
+  currentPhotos = [];
+  currentStep = 0;
+  if (selectedWell) buildForm(selectedWell);
+}
+
+// ============================================================
+// RECORDS
+// ============================================================
+function renderRecords() {
+  const records = loadRecords();
+  const list = document.getElementById('records-list');
+  document.getElementById('records-count').textContent = `REGISTROS LOCAIS (${records.length})`;
+
+  if (!records.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📂</div>
+      <div class="empty-title">Nenhum registro</div>
+      <div class="empty-desc">Preencha o formulário e salve para armazenar os dados localmente.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = records.sort((a,b) => (b.updatedAt||'').localeCompare(a.updatedAt||'')).map(r => `
+    <div class="record-item" onclick="editRecord('${r.siagas}')">
+      <div class="record-head">
+        <span class="record-code">#${r.siagas}</span>
+        <span class="badge badge-${r.syncStatus}">${r.syncStatus === 'pending' ? 'PENDENTE' : r.syncStatus === 'synced' ? 'SINCRONIZADO' : 'RASCUNHO'}</span>
+        <span class="record-date">${r.updatedAt ? r.updatedAt.substring(0,10) : ''}</span>
+      </div>
+      <div class="record-name">${r.nomePonto || '—'}</div>
+      <div class="record-status">${r.municipio || ''} · ${r.uf || ''} · ${r.data || ''}</div>
+    </div>
+  `).join('');
+}
+
+function editRecord(siagas) {
+  const wells = getAllWells();
+  const well = wells.find(w => String(w.ponto || w.siagas) === String(siagas));
+  if (well) {
+    selectedWell = well;
+    buildForm(well);
+    switchTab('form');
+  }
+}
+
+// ============================================================
+// EXPORT CSV
+// ============================================================
+function exportAllCSV() {
+  const records = loadRecords();
+  if (!records.length) { showToast('Nenhum registro para exportar'); return; }
+
+  const headers = ['siagas','ana','nomePonto','uf','ur','municipio','localPonto','uf_sureg','roteiro','equipe',
+    'data','situacao','pcd','cercado','na_manual','na_equip','serie','equipamento','patrimonio',
+    'atividades','condicao','os','problemas','obs','lat','lon','cota','bacia','subbacia','syncStatus','updatedAt'];
+
+  const rows = records.map(r => headers.map(h => {
+    const v = h === 'atividades' ? (r[h]||[]).join('; ') : (r[h] === undefined ? '' : r[h]);
+    return `"${String(v).replace(/"/g,'""')}"`;
+  }).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `RIMAS_coleta_${new Date().toISOString().substring(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✔ CSV exportado com sucesso');
+}
+
+// ============================================================
+// SYNC (simulated — wire to real API endpoint)
+// ============================================================
+function syncRecords() {
+  if (!navigator.onLine) { showToast('⚠ Sem conexão. Tente novamente quando online.'); return; }
+  const records = loadRecords();
+  const pending = records.filter(r => r.syncStatus === 'pending');
+  if (!pending.length) { showToast('Nenhum registro pendente.'); return; }
+
+  // In a real deployment, POST each record to your API:
+  // fetch('/api/rimas/records', { method:'POST', body: JSON.stringify(pending), headers:{'Content-Type':'application/json'} })
+
+  // Simulate sync
+  const updated = records.map(r => r.syncStatus === 'pending' ? {...r, syncStatus:'synced'} : r);
+  saveRecords(updated);
+  renderRecords();
+  showToast(`✔ ${pending.length} registro(s) sincronizados`);
+}
+
+// ============================================================
+// NEW POINT MODAL
+// ============================================================
+function openNewPointModal() {
+  document.getElementById('modal-new').classList.remove('hidden');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+function saveNewPoint() {
+  const siagas = document.getElementById('new-siagas').value;
+  const nome = document.getElementById('new-nome').value;
+  const uf = document.getElementById('new-uf-poco').value;
+  const ur = document.getElementById('new-ur').value;
+
+  if (!siagas || !nome || !uf || !ur) {
+    showToast('⚠ Preencha os campos obrigatórios'); return;
+  }
+
+  if (getAllWells().find(w => String(w.ponto || w.siagas) === siagas)) {
+    showToast('⚠ Código SIAGAS já existente'); return;
+  }
+
+  const newWell = {
+    ponto: parseInt(siagas),
+    siagas: siagas,
+    nome: nome.toUpperCase(),
+    'UR Responsável': ur,
+    uf: uf,
+    municipio: document.getElementById('new-mun').value,
+    localizacao: document.getElementById('new-local').value,
+    latitude_decimal: parseFloat(document.getElementById('new-lat').value) || null,
+    longitude_decimal: parseFloat(document.getElementById('new-lon').value) || null,
+    'Cód ANA': document.getElementById('new-ana').value,
+    situacao: 'Poço RIMAS não equipado',
+    natureza: 'Piezometro',
+    _isNew: true,
+  };
+
+  const extras = loadExtraWells();
+  extras.push(newWell);
+  saveExtraWells(extras);
+
+  // Add to map
+  addMarker(newWell);
+
+  // Refresh list
+  renderList(
+    document.getElementById('search-input').value,
+    document.getElementById('filter-ur').value,
+    document.getElementById('filter-uf').value,
+  );
+
+  closeModal('modal-new');
+  showToast('✔ Novo ponto adicionado');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// LOAD WELLS (embedded JSON)
+// ============================================================
+async function loadWells() {
+  const resp = await fetch('wells.json');
+  const data = await resp.json();
+  WELLS_RAW.push(...data);
+  document.getElementById('map-count').textContent = WELLS_RAW.length + ' pontos cadastrados';
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+async function init() {
+  await loadWells();
+  initMap();
+  initListFilters();
+  updateSyncBadge();
+
+  // Service Worker registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+init();
+</script>
+</body>
+</html>
