@@ -1552,6 +1552,12 @@ function buildForm(well) {
     'f-pcd-obs':    d.pcd_obs || '',
     'f-sn1':        String(d.sn1 || ''),
     'f-sn2':        String(d.sn2 || ''),
+    'f-problema-formigas': d.f_problema_formigas || false,
+    'f-problema-raizes': d.f_problema_raizes || false,
+    'f-problema-gotejamento': d.f_problema_gotejamento || false,
+    'f-problema-acesso': d.f_problema_acesso || false,
+    'f-problema-interferencia': d.f_problema_interferencia || false,
+    'f-problema-bateria': d.f_problema_bateria || false,
   };
 
   // Build sections HTML data
@@ -1887,6 +1893,12 @@ function collectCurrentStep() {
     const el = document.getElementById(id);
     if (el && el.value !== undefined) formCache[id] = el.value;
   });
+  const ids = [  'f-problema-formigas': document.getElementById('f-problema-formigas')?.checked || false,
+    'f-problema-raizes': document.getElementById('f-problema-raizes')?.checked || false,
+    'f-problema-gotejamento': document.getElementById('f-problema-gotejamento')?.checked || false,
+    'f-problema-acesso': document.getElementById('f-problema-acesso')?.checked || false,
+    'f-problema-interferencia': document.getElementById('f-problema-interferencia')?.checked || false,
+    'f-problema-bateria': document.getElementById('f-problema-bateria')?.checked || false,];
   // Radio groups — only update if the group exists in DOM
   ['f-pcd','f-serie','f-amostra-tipo','f-pcd-tipo'].forEach(gid => {
     if (!document.getElementById(gid)) return;
@@ -1990,15 +2002,9 @@ function goToStep(idx) {
 }
 
 function stepNext() {
-  const panel = document.getElementById('form-panel');
-  if (!panel._sections) return;
-  if (currentStep < panel._sections.length - 1) {
-    collectCurrentStep();
-    currentStep++;
-    _renderCurrentStep();
-    document.getElementById('section-card').scrollTop = 0;
-  }
-}
+   if (!validateFormData()) return;  // ← ADICIONE ESTA LINHA
+  collectCurrentStep();
+  if (currentStep < STEP_LABELS.length - 1) {
 
 function stepPrev() {
   if (currentStep > 0) {
@@ -2348,6 +2354,9 @@ function saveRecord(status) {
 }
 
 function saveDraft() { saveRecord('draft'); }
+  if (!validateFormData()) return;  
+  collectCurrentStep();
+  // ... resto da função
 
 function clearForm() {
   if (!confirm('Limpar todos os campos preenchidos?')) return;
@@ -2417,9 +2426,9 @@ function exportAllCSV() {
   if (!records.length) { showToast('Nenhum registro para exportar'); return; }
 
   const headers = ['siagas','ana','nomePonto','uf','ur','municipio','localPonto','uf_sureg','roteiro','equipe',
-    'data','situacao','situacao_outros','pcd','pcd_tipo','pcd_obs','na_manual','na_equip','voltagem','serie','equipamento','equipamento_outros','patrimonio','sn1','sn2',
-    'atividades','atividades_outros','amostra_tipo','amostra_obs','limpeza_obs',
-    'condicao','os','problemas','obs','lat','lon','cota','bacia','subbacia','syncStatus','updatedAt'];
+    'data','situacao','situacao_outros','pcd','pcd_tipo','pcd_obs','na_manual_h1','na_manual_v1','na_manual_h2','na_manual_v2','na_manual_h3','na_manual_v3',
+    'na_equip_h1','na_equip_v1','na_equip_h2','na_equip_v2','na_equip_h3','na_equip_v3',
+    'voltagem','serie','equipamento','equipamento_outros','patrimonio','sn1','sn2',
 
   const rows = records.map(r => headers.map(h => {
     let v;
@@ -2662,7 +2671,40 @@ function exportRecordHTML(siagas) {
     <div class="row">
       <div class="field"><label>Situação</label><span>${fmt(r.situacao)}${r.situacao_outros ? ' – ' + r.situacao_outros : ''}</span></div>
       <div class="field"><label>OS</label><span>${fmt(r.os)}</span></div>
-      <div class="field full"><label>Problemas identificados</label><span>${fmt(r.problemas)}</span></div>
+       <div class="field full">
+        <label>Situações / Problemas Comuns (marque quantos aplicarem)</label>
+        <div class="checkbox-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-formigas"> 
+            Formigas / Insetos
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-raizes"> 
+            Raízes / Vegetação
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-gotejamento"> 
+            Gotejamento / Vazamento
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-acesso"> 
+            Acesso ruim / Cercado
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-interferencia"> 
+            Interferência poço próximo
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="f-problema-bateria"> 
+            Bateria descarregada
+          </label>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label>Outros problemas (descrição livre)</label>
+        <textarea id="f-problemas" placeholder="Descreva qualquer outro problema..."></textarea>
+      </div>
       <div class="field full"><label>Observações gerais</label><span>${fmt(r.obs)}</span></div>
     </div>
   </div>
@@ -2710,7 +2752,41 @@ function exportRecordHTML(siagas) {
 // ============================================================
 // SYNC (simulated — wire to real API endpoint)
 // ============================================================
-function syncRecords() {
+```javascript
+// ============================================================
+// VALIDAÇÃO DE DADOS OBRIGATÓRIOS
+// ============================================================
+function validateFormData() {
+  // Validar nível d'água: pelo menos 1 medição (manual OU equipamento)
+  const naManualV1 = document.getElementById('f-na-manual-v1')?.value;
+  const naEquipV1 = document.getElementById('f-na-equip-v1')?.value;
+  
+  if (!naManualV1 && !naEquipV1) {
+    showToast('⚠️ OBRIGATÓRIO: Registre pelo menos 1 nível d\'água (manual OU equipamento no horário 1)');
+    return false;
+  }
+  
+  // Validar amostras
+  const amostraType = document.getElementById('f-amostra-tipo')?.value;
+  if (!amostraType || amostraType === '') {
+    showToast('⚠️ OBRIGATÓRIO: Indique tipo de amostra');
+    return false;
+  }
+  
+  // Validar fotos: mínimo 1
+  if (currentPhotos.length === 0) {
+    showToastAction(
+      '⚠️ Nenhuma foto. Continuar mesmo assim?',
+      'CONTINUAR',
+      () => saveDraft()
+    );
+    return false;
+  }
+  
+  return true;
+}
+```
+  function syncRecords() {
   if (!navigator.onLine) { showToast('⚠ Sem conexão. Tente novamente quando online.'); return; }
   const records = loadRecords();
   const pending = records.filter(r => r.syncStatus === 'pending');
