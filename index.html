@@ -1590,7 +1590,9 @@ function buildForm(well) {
     </div>
   `;
 
-  renderStep(sections);
+  const panel = document.getElementById('form-panel');
+ panel._sections = sections;
+ _renderCurrentStep();
 }
 
 function buildSections(well, d, today, code) {
@@ -1879,38 +1881,56 @@ function renderStep(sections) {
   _renderCurrentStep();
 }
 
+
 function collectCurrentStep() {
-  // Harvest all currently visible form fields into formCache
-  const ids = ['f-ana','f-uf-sureg','f-mun','f-roteiro','f-equipe',
-               'f-data','f-situacao','f-na-manual','f-na-equip','f-voltagem',
-               'f-na-manual-h1','f-na-manual-v1','f-na-manual-h2','f-na-manual-v2','f-na-manual-h3','f-na-manual-v3',
-               'f-na-equip-h1','f-na-equip-v1','f-na-equip-h2','f-na-equip-v2','f-na-equip-h3','f-na-equip-v3',
-               'f-ultimo-dado',
-               'f-equip','f-patrimonio','f-sn1','f-sn2','f-condicao','f-os','f-problemas','f-obs',
-               'f-situacao-outros-val','f-equip-outros-val','f-atividades-outros-val',
-               'f-amostra-obs','f-limpeza-obs','f-estacao-obs','f-pcd-obs'];
-  ids.forEach(id => {
+  // ✅ CORRIGIDO: Coleta campos de texto e número
+  const textIds = [
+    'f-ana', 'f-uf-sureg', 'f-mun', 'f-roteiro', 'f-equipe',
+    'f-data', 'f-situacao', 'f-voltagem',
+    'f-na-manual-h1', 'f-na-manual-v1', 'f-na-manual-h2', 'f-na-manual-v2', 'f-na-manual-h3', 'f-na-manual-v3',
+    'f-na-equip-h1', 'f-na-equip-v1', 'f-na-equip-h2', 'f-na-equip-v2', 'f-na-equip-h3', 'f-na-equip-v3',
+    'f-ultimo-dado', 'f-equip', 'f-patrimonio', 'f-sn1', 'f-sn2',
+    'f-condicao', 'f-os', 'f-problemas', 'f-obs',
+    'f-situacao-outros-val', 'f-equip-outros-val', 'f-atividades-outros-val',
+    'f-amostra-obs', 'f-limpeza-obs', 'f-estacao-obs', 'f-pcd-obs'
+  ];
+  
+  textIds.forEach(id => {
     const el = document.getElementById(id);
-    if (el && el.value !== undefined) formCache[id] = el.value;
+    if (el && el.value !== undefined) {
+      formCache[id] = el.value;
+    }
   });
-  const ids = [  'f-problema-formigas': document.getElementById('f-problema-formigas')?.checked || false,
+ 
+  // ✅ CORRIGIDO: Coleta checkboxes como OBJETO (não array com sintaxe errada)
+  // PROBLEMA ORIGINAL: const ids = [ 'f-problema-formigas': ... ] ← SINTAXE INVÁLIDA
+  // SOLUÇÃO: Usar {} para objeto em vez de []
+  const checkboxFields = {
+    'f-problema-formigas': document.getElementById('f-problema-formigas')?.checked || false,
     'f-problema-raizes': document.getElementById('f-problema-raizes')?.checked || false,
     'f-problema-gotejamento': document.getElementById('f-problema-gotejamento')?.checked || false,
     'f-problema-acesso': document.getElementById('f-problema-acesso')?.checked || false,
     'f-problema-interferencia': document.getElementById('f-problema-interferencia')?.checked || false,
-    'f-problema-bateria': document.getElementById('f-problema-bateria')?.checked || false,];
+    'f-problema-bateria': document.getElementById('f-problema-bateria')?.checked || false,
+  };
+  
+  // Mescla checkboxes ao formCache
+  Object.assign(formCache, checkboxFields);
+ 
   // Radio groups — only update if the group exists in DOM
-  ['f-pcd','f-serie','f-amostra-tipo','f-pcd-tipo'].forEach(gid => {
+  ['f-pcd', 'f-serie', 'f-amostra-tipo', 'f-pcd-tipo'].forEach(gid => {
     if (!document.getElementById(gid)) return;
     const sel = document.querySelector(`#${gid} .radio-item.selected`);
     formCache[gid] = sel ? sel.textContent.trim() : (formCache[gid] || '');
   });
+  
   // Checkboxes — only update if the group exists in DOM
   const ativGrp = document.getElementById('f-atividades');
   if (ativGrp) {
     formCache['f-atividades'] = [...ativGrp.querySelectorAll('.checkbox-item.checked')]
       .map(el => el.textContent.trim());
   }
+  
   // Checklist — collect state from visible checklist rows
   collectChecklistState();
 }
@@ -1940,6 +1960,21 @@ function collectChecklistState() {
   formCache['f-checklist'] = cl;
 }
 
+  
+function renderStep(sections) {
+  // Armazena as seções no painel para uso posterior
+  const panel = document.getElementById('form-panel');
+  if (!panel) {
+    console.error('❌ Panel não encontrado!');
+    return;
+  }
+  
+  panel._sections = sections;
+  
+  // Chama a função que renderiza de verdade
+  _renderCurrentStep();
+}
+  
 function _renderCurrentStep() {
   const panel = document.getElementById('form-panel');
   const sections = panel._sections;
