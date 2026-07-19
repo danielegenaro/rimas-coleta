@@ -2463,7 +2463,7 @@ function exportAllCSV() {
   const headers = ['siagas','ana','nomePonto','uf','ur','municipio','localPonto','uf_sureg','roteiro','equipe',
     'data','situacao','situacao_outros','pcd','pcd_tipo','pcd_obs','na_manual_h1','na_manual_v1','na_manual_h2','na_manual_v2','na_manual_h3','na_manual_v3',
     'na_equip_h1','na_equip_v1','na_equip_h2','na_equip_v2','na_equip_h3','na_equip_v3',
-    'voltagem','serie','equipamento','equipamento_outros','patrimonio','sn1','sn2',
+    'voltagem','serie','equipamento','equipamento_outros','patrimonio','sn1','sn2','observacoes'];
 
   const rows = records.map(r => headers.map(h => {
     let v;
@@ -2962,7 +2962,7 @@ function loadTheme() {
 // ============================================================
 async function loadWells() {
   try {
-    const resp = await fetch('wells.json');
+    const resp = await fetch('./wells.json');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     WELLS_RAW.push(...data);
